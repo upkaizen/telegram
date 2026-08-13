@@ -1,18 +1,18 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-from google import genai
+from groq import Groq
 
 st.set_page_config(page_title="UPKAIZEN Content Copilot", page_icon="⚡")
 
 st.title("⚡ UPKAIZEN - Content Copilot (Telegram)")
 st.write("Genera resúmenes ejecutivos optimizados con IA a partir de tu contenido para el canal de Telegram.")
 
-# Inicializar cliente de Google GenAI
+# Inicializar cliente de Groq
 try:
-    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except Exception as e:
-    st.error(f"Error configurando la API de Gemini: {e}")
+    st.error(f"Error configurando la API de Groq: {e}")
 
 # Selector de Fuente
 fuente = st.selectbox(
@@ -44,8 +44,8 @@ def extraer_contenido_web(url):
     except Exception as e:
         return None
 
-if st.button("🤖 Generar borrador con IA (Gemini)"):
-    with st.spinner("Leyendo web y redactando post con Gemini..."):
+if st.button("🤖 Generar borrador con IA"):
+    with st.spinner("Leyendo web de UPKAIZEN y redactando post..."):
         contenido_web = extraer_contenido_web(target_url)
         
         if contenido_web:
@@ -65,23 +65,14 @@ if st.button("🤖 Generar borrador con IA (Gemini)"):
             """
             
             try:
-                # Intentar con la versión flash estándar
-                try:
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=prompt,
-                    )
-                except Exception:
-                    # Alternativa en caso de fallback de API
-                    response = client.models.generate_content(
-                        model='gemini-1.5-flash',
-                        contents=prompt,
-                    )
-
-                st.session_state["borrador_post"] = response.text
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                st.session_state["borrador_post"] = response.choices[0].message.content
                 st.success("¡Borrador generado con éxito!")
             except Exception as e:
-                st.error(f"Error al generar con Gemini: {e}")
+                st.error(f"Error al generar con Groq: {e}")
         else:
             st.warning(f"No se pudo extraer contenido de {target_url}. Podés ingresar el texto manualmente.")
 
@@ -89,7 +80,7 @@ st.subheader("📝 Borrador para Telegram (Editar antes de publicar)")
 
 contenido_final = st.text_area(
     "Revisá y modificá el mensaje:",
-    value=st.session_state.get("borrador_post", "Hacé clic en 'Generar borrador' o escribí tu mensaje acá..."),
+    value=st.session_state.get("borrador_post", "Hacé clic en 'Generar borrador'..."),
     height=280
 )
 
