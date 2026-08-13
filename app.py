@@ -56,12 +56,13 @@ if st.button("🤖 Generar borrador con IA"):
             CONTENIDO:
             {contenido_web[:3000]}
 
-            REGLAS:
-            1. Usá formato Markdown (negritas, listas).
-            2. Título enganchador con emoji.
-            3. Resumí los 3 puntos/aprendizajes clave para directores de operaciones.
-            4. Incluí CTA invitando a leer completo en {target_url}.
-            5. Tono técnico, B2B, directo y de alto valor.
+            REGLAS DE FORMATO CRÍTICAS:
+            1. Usá texto plano limpio. Podés usar emojis y guiones para listas.
+            2. NO uses caracteres especiales de Markdown raros que puedan romper el envío.
+            3. Título enganchador con emoji.
+            4. Resumí los 3 puntos/aprendizajes clave para directores de operaciones.
+            5. Incluí CTA invitando a leer completo en {target_url}.
+            6. Tono técnico, B2B, directo y de alto valor.
             """
             
             try:
@@ -84,6 +85,9 @@ contenido_final = st.text_area(
     height=280
 )
 
+# Selector de formato para evitar errores de parseo en Telegram
+modo_envio = st.checkbox("Desactivar formato especial (Enviar como Texto Plano para evitar errores)", value=True)
+
 if st.button("🚀 Publicar en Canal de Telegram"):
     if contenido_final.strip():
         try:
@@ -91,11 +95,15 @@ if st.button("🚀 Publicar en Canal de Telegram"):
             chat_id = st.secrets["TELEGRAM_CHAT_ID"]
             
             url = f"https://api.telegram.org/bot{token}/sendMessage"
+            
             payload = {
                 "chat_id": chat_id,
-                "text": contenido_final,
-                "parse_mode": "Markdown"
+                "text": contenido_final
             }
+            
+            # Solo agregar parse_mode si el usuario no eligió texto plano
+            if not modo_envio:
+                payload["parse_mode"] = "Markdown"
             
             res = requests.post(url, json=payload, timeout=5)
             if res.status_code == 200:
