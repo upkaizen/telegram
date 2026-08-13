@@ -1,30 +1,16 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import google.generativeai as genai
+from google import genai
 
 st.set_page_config(page_title="UPKAIZEN Content Copilot", page_icon="⚡")
 
 st.title("⚡ UPKAIZEN - Content Copilot (Telegram)")
 st.write("Genera resúmenes ejecutivos optimizados con IA a partir de tu contenido para el canal de Telegram.")
 
-# Configurar Gemini API y detectar modelo disponible automáticamente
-model = None
+# Inicializar cliente de Google GenAI
 try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    
-    # Buscar dinámicamente un modelo activo que admita generateContent
-    available_models = [
-        m.name for m in genai.list_models() 
-        if "generateContent" in m.supported_generation_methods
-    ]
-    
-    if available_models:
-        # Priorizar modelos flash o tomar el primero disponible
-        selected_model_name = next((m for m in available_models if "flash" in m), available_models[0])
-        model = genai.GenerativeModel(selected_model_name)
-    else:
-        st.error("No se encontraron modelos disponibles para generateContent en tu API Key.")
+    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
     st.error(f"Error configurando la API de Gemini: {e}")
 
@@ -59,36 +45,45 @@ def extraer_contenido_web(url):
         return None
 
 if st.button("🤖 Generar borrador con IA (Gemini)"):
-    if not model:
-        st.error("La API de Gemini no está configurada correctamente.")
-    else:
-        with st.spinner("Leyendo web y redactando post con Gemini..."):
-            contenido_web = extraer_contenido_web(target_url)
+    with st.spinner("Leyendo web y redactando post con Gemini..."):
+        contenido_web = extraer_contenido_web(target_url)
+        
+        if contenido_web:
+            prompt = f"""
+            Sos el Chief Content Officer de UPKAIZEN, experto en Excelencia Operacional y Lean.
+            Redactá un post impactante y profesional para el canal de Telegram @OperationalExcellenceCommunity basado en este contenido extraído de {target_url}:
+
+            CONTENIDO:
+            {contenido_web[:3000]}
+
+            REGLAS:
+            1. Usá formato Markdown (negritas, listas).
+            2. Título enganchador con emoji.
+            3. Resumí los 3 puntos/aprendizajes clave para directores de operaciones.
+            4. Incluí CTA invitando a leer completo en {target_url}.
+            5. Tono técnico, B2B, directo y de alto valor.
+            """
             
-            if contenido_web:
-                prompt = f"""
-                Sos el Chief Content Officer de UPKAIZEN, experto en Excelencia Operacional y Lean.
-                Redactá un post impactante y profesional para el canal de Telegram @OperationalExcellenceCommunity basado en este contenido extraído de {target_url}:
-
-                CONTENIDO:
-                {contenido_web[:3000]}
-
-                REGLAS:
-                1. Usá formato Markdown (negritas, listas).
-                2. Título enganchador con emoji.
-                3. Resumí los 3 puntos/aprendizajes clave para directores de operaciones.
-                4. Incluí CTA invitando a leer completo en {target_url}.
-                5. Tono técnico, B2B, directo y de alto valor.
-                """
-                
+            try:
+                # Intentar con la versión flash estándar
                 try:
-                    response = model.generate_content(prompt)
-                    st.session_state["borrador_post"] = response.text
-                    st.success("¡Borrador generado con éxito!")
-                except Exception as e:
-                    st.error(f"Error al generar con Gemini: {e}")
-            else:
-                st.warning(f"No se pudo extraer contenido de {target_url}. Podés ingresar el texto manualmente.")
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=prompt,
+                    )
+                except Exception:
+                    # Alternativa en caso de fallback de API
+                    response = client.models.generate_content(
+                        model='gemini-1.5-flash',
+                        contents=prompt,
+                    )
+
+                st.session_state["borrador_post"] = response.text
+                st.success("¡Borrador generado con éxito!")
+            except Exception as e:
+                st.error(f"Error al generar con Gemini: {e}")
+        else:
+            st.warning(f"No se pudo extraer contenido de {target_url}. Podés ingresar el texto manualmente.")
 
 st.subheader("📝 Borrador para Telegram (Editar antes de publicar)")
 
