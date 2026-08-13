@@ -1,0 +1,63 @@
+name: Publicar borrador UPKAIZEN en Telegram
+
+on:
+  schedule:
+    # Todos los miércoles a las 13:00 UTC (16:00 hora de Estonia)
+    - cron: '0 13 * * 3'
+  workflow_dispatch:
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 groq
+
+      - name: Ejecutar script de publicación
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -c "
+          import os, requests
+          from bs4 import BeautifulSoup
+          from groq import Groq
+
+          groq_key = os.environ['GROQ_API_KEY']
+          token = os.environ['TELEGRAM_TOKEN']
+          chat_id = os.environ['TELEGRAM_CHAT_ID']
+
+          client = Groq(api_key=groq_key)
+          url = 'https://upkaizen.com/blog'
+
+          try:
+              res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+              soup = BeautifulSoup(res.text, 'html.parser')
+              titulos = [h.get_text(strip=True) for h in soup.find_all(['h1', 'h2', 'h3'])[:5]]
+              parrafos = [p.get_text(strip=True) for p in soup.find_all('p')[:10]]
+              texto = '\n'.join(titulos + parrafos)[:3000]
+
+              prompt = f'Sos el Chief Content Officer de UPKAIZEN. Redactá un post profesional para Telegram basado en: {texto}. Incluí título con emoji, 3 aprendizajes clave y un CTA a {url}. No uses caracteres especiales de Markdown que rompan la API.'
+
+              response = client.chat.completions.create(
+                  model='llama-3.3-70b-versatile',
+                  messages=[{'role': 'user', 'content': prompt}]
+              )
+              mensaje = response.choices[0].message.content
+
+              requests.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat_id, 'text': mensaje})
+              print('Publicado con éxito')
+          except Exception as e:
+              print(f'Error: {e}')
+          "
