@@ -11,7 +11,7 @@ st.write("Genera resúmenes ejecutivos optimizados con IA a partir de tu conteni
 # Configurar Gemini API
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.0-flash")
 except Exception as e:
     st.error(f"Error configurando la API de Gemini: {e}")
 
